@@ -8,7 +8,7 @@ import lxml
 import re
 
 base_url = 'http://weixin.sogou.com/weixin?'
-headers = { 'Cookie':'SUV=1455855914427734; SMYUV=1455855914428687; SUID=0B96CC793120910A0000000057C54695; ssuid=352520587; teleplay_play_records=%C8%FD%BD%A3%C6%E6%D4%B5:1; CXID=73321E1E8313D931285A60A0746ADABF; dt_ssuid=4188476084; ABTEST=0|1511194024|v1; weixinIndexVisited=1; sct=2; IPLOC=CN3502; ppinf=5|1511194273|1512403873|dHJ1c3Q6MToxfGNsaWVudGlkOjQ6MjAxN3x1bmlxbmFtZToyNzolRTUlOTAlQjQlRTglOTklOEUlRTglOTklOEV8Y3J0OjEwOjE1MTExOTQyNzN8cmVmbmljazoyNzolRTUlOTAlQjQlRTglOTklOEUlRTglOTklOEV8dXNlcmlkOjQ0Om85dDJsdUZaV05pSklCdnpJeUd4cnZyLUZqc01Ad2VpeGluLnNvaHUuY29tfA; pprdig=e8ZZSRv1uUF3-5x2E6wsfNS5qtfwdgHNBR91AtLBQLpy8SzLiYddR6f3LJ9OMztcWGA1xK06-NhXK949hLCFkPCrRS7RADyTUz4SnTxfYyC6mvJbK3wG1yPeV0Vq1wmOgZUAt7MecZA1Wm7_FEs1k2wwxbYQuOGwPowVuEO7V6A; sgid=20-32069665-AVoSicqENrz9xYzNiaDjybUv8; SUIR=0FB39CD16660380A226D25966662FBAF; JSESSIONID=aaajGEZApGb8bbjgALv8v; PHPSESSID=4givo4s34g4bsombang3ira8p6; SNUID=3984ABE751540ED120BCE49D51306CC9; ppmdig=1511286493000000734a93957d438dbdd7013fa963aaa632',
+headers = { 'Cookie':'SUV=1498460134109979; SMYUV=1498460134111899; ssuid=1890964740; dt_ssuid=4575662996; IPLOC=CN3502; SUID=FB052A781508990A000000005955F5BE; GOTO=Af22417-3002; ABTEST=8|1511342636|v1; SNUID=E4DDF2A1D9DC8656382EB672D94B1C25; weixinIndexVisited=1; sct=2',
             'Host': 'weixin.sogou.com',
             'Upgrade-Insecure-Requests':'1',
             'User-Agent':'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.94 Safari/537.36'
@@ -17,7 +17,7 @@ headers = { 'Cookie':'SUV=1455855914427734; SMYUV=1455855914428687; SUID=0B96CC7
 proxy_pool_url = 'http://127.0.0.1:5010/get/'
 proxy = None
 
-keyword = '开发'
+keyword = 'iOS开发'
 
 max_count = 5
 
@@ -46,6 +46,7 @@ def get_html(url, count=1):
             response = requests.get(url,allow_redirects=False,headers = headers,proxies=proxies,timeout=5)
         else:
             response = requests.get(url,allow_redirects=False,headers = headers)
+        # print('HTTP代码', response.status_code)
         if response.status_code == 200:
             return response.text
         if response.status_code == 302:
@@ -57,7 +58,8 @@ def get_html(url, count=1):
             else:
                 print('Get Proxy Failed')
                 return None
-        print('HTTP代码',response.status_code)
+
+        return None
     except ConnectionError as e:
         proxy = get_proxy()
         count += 1
@@ -92,6 +94,33 @@ def parse_index(html):
     for item in items:
         yield item.attr('href')
 
+
+def get_article_html(url):
+    print('正在获取文章内容...',url)
+    try:
+        article_headers = {
+            'Cookie': 'RK=lKVPu8mfRI; LW_uid=t1L5X0e1z2c3A4951138E0X3z0; eas_sid=V1y500w1A2p3d4V5g2T4P334S5; tvfe_boss_uuid=93388f1d46543e33; pgv_pvi=102194176; sd_userid=94461503753794222; sd_cookie_crttime=1503753794222; LW_sid=x1K570m5X4l6e53151w0Q3m8f6; pgv_si=s966610944; pac_uid=1_642780548; ptui_loginuin=642780548; ptisp=ctc; ptcz=0ed895cfe7d9923f625c03c2b5e8018375336bc694a6599d38c38fd52950bc01; uin=o0642780548; skey=@nrgokCwrW; pt2gguin=o0642780548; pgv_info=ssid=s6511026106&pgvReferrer=; pgv_pvid=1774008720; o_cookie=642780548; _ga=GA1.2.1615192411.1502761867',
+            'Host': 'mp.weixin.qq.com',
+            'Referer': 'http://weixin.sogou.com/',
+            'User-Agent':'Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.95 Mobile Safari/537.36'
+        }
+        responce = requests.get(url,headers = article_headers)
+        print('HTTP CODE',responce.status_code)
+        if responce.status_code == 200:
+            return responce.text
+        return None
+    except ConnectionError:
+        return None
+
+def parse_article(html):
+    print('开始解析文章结构...')
+    doc = pq(html)
+    return {
+        'article_title':doc('.rich_media_title').text(),
+        'official_account':doc('.rich_media_meta_list a').text(),
+        'auther':doc('.rich_media_meta_list em').items()[1].text()
+    }
+
 def main():
     for page in range(1,100):
         html = get_index(keyword,page)
@@ -99,7 +128,10 @@ def main():
         if html:
             articles = parse_index(html)
             for article_url in articles:
-                print(article_url)
+                html = get_article_html(article_url)
+                if html:
+                     results = parse_article(html)
+                     print(results)
 
 
 if __name__ == '__main__':
