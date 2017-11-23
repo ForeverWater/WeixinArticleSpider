@@ -3,9 +3,11 @@ from urllib.parse import urlencode
 from requests.exceptions import ConnectionError
 from requests.exceptions import ConnectTimeout
 from pyquery import PyQuery as pq
-from bs4 import BeautifulSoup
-import lxml
-import re
+import pymongo
+from config import *
+
+client = pymongo.MongoClient(MONGO_URL,connect=False)
+db = client[MONGO_DB]
 
 base_url = 'http://weixin.sogou.com/weixin?'
 headers = { 'Cookie':'SUV=1498460134109979; SMYUV=1498460134111899; ssuid=1890964740; dt_ssuid=4575662996; IPLOC=CN3502; SUID=FB052A781508990A000000005955F5BE; GOTO=Af22417-3002; ABTEST=8|1511342636|v1; SNUID=E4DDF2A1D9DC8656382EB672D94B1C25; weixinIndexVisited=1; sct=2',
@@ -15,13 +17,13 @@ headers = { 'Cookie':'SUV=1498460134109979; SMYUV=1498460134111899; ssuid=189096
             }
 
 proxy_pool_url = 'http://127.0.0.1:5010/get/'
-proxy = None
+proxy = None #全局参数：IP
 
 keyword = 'iOS开发'
 
 max_count = 5
 
-
+#获取代理IP
 def get_proxy():
     try:
         responce = requests.get(proxy_pool_url)
@@ -71,6 +73,7 @@ def get_html(url, count=1):
         print('请求超时：', requests.exceptions.Timeout.args)
         return get_html(url, count)
 
+#获取索引页
 def get_index(keyword,page):
     data = {
         'query':keyword,
@@ -82,6 +85,7 @@ def get_index(keyword,page):
     html = get_html(url)
     return html
 
+#解析索引页
 def parse_index(html):
     print('开始解析标签网页...')
     # pattern = re.compile('txt-box">.*?<h3>.*?href="(.*?)".*?</h3>')
@@ -95,6 +99,7 @@ def parse_index(html):
         yield item.attr('href')
 
 
+#获取文章页
 def get_article_html(url):
     print('正在获取文章内容...',url)
     try:
@@ -112,17 +117,27 @@ def get_article_html(url):
     except ConnectionError:
         return None
 
+#解析文章页
 def parse_article(html):
     print('开始解析文章结构...')
     doc = pq(html)
     return {
-        'article_title':doc('.rich_media_title').text(),
-        'official_account':doc('.rich_media_meta_list a').text(),
-        'auther':doc('.rich_media_meta_list em').items()[1].text()
+        'title':doc('.rich_media_title').text(),
+        'official_account_name':doc('.rich_media_meta_list a').text(),
+        'auther':doc('.rich_media_meta_list .profile_nickname').text(),
+        'date':doc('.rich_media_meta_list #post-date').text(),
+        'official_account':doc('.rich_media_meta_list .profile_meta span').text().split(' ')[0],
+        'content': doc('.rich_media_content').html()
     }
 
+def save_to_mongo(dic):
+    if db[MONGO_TABLE].insert(dic):
+        print('MONGO数据库存储成功')
+        return True
+    return False
+
 def main():
-    for page in range(1,100):
+    for page in range(1,101):
         html = get_index(keyword,page)
         # print(html)
         if html:
@@ -131,7 +146,8 @@ def main():
                 html = get_article_html(article_url)
                 if html:
                      results = parse_article(html)
-                     print(results)
+                     if results:
+                         save_to_mongo(results)
 
 
 if __name__ == '__main__':
